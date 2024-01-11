@@ -113,6 +113,7 @@ services:
     ports:
       - 172.17.0.1:2375:2375
     privileged: true
+    network_mode: bridge
 ```
 8. Create compose.yaml with docker proxy on VM edge-two:
 ```
@@ -127,6 +128,7 @@ services:
     ports:
       - 172.17.0.2:2375:2375
     privileged: true
+    network_mode: bridge
 ```
 9. Start containers using `docker compose up -d`
 10. Set up dnsmasq:
@@ -152,11 +154,21 @@ server=8.8.8.8
 addn-hosts=/etc/dnsmasq.hosts
 ```
 13. Restart dnsmasq using `systemctl restart dnsmasq`
-14. Configure /etc/resolv.conf on VM edge-one:
+14. Remove /etc/resol.conf sym links using rm `/etc/resolv.conf`
+15. Configure /etc/resolv.conf on VM edge-one:
 ```
 nameserver 172.17.0.1
 ```
-15. Configure /etc/resolv.conf on VM edge-two:
+16. Configure /etc/resolv.conf on VM edge-two:
 ```
 nameserver 172.17.0.2
 ```
+17. Enable ip forwarding using /etc/sysctl.conf:
+```
+net.ipv4.ip_forward=1
+```
+18. Allow ip forwarding from wg0 to docker0 using `iptables -A FORWARD -i wg0 -o docker0 -j ACCEPT`
+
+Note:
+  Currently we have to run wg-quick up command on reboot every timeand restart dnsmasq afterward.
+  We also have to add the ip tables rule again.
