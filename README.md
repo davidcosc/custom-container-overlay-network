@@ -91,7 +91,7 @@ AllowedIPs = 172.17.0.2/24, 172.17.2.0/24
 Endpoint = 10.0.2.10:51820
 PersistentKeepalive = 25
 ```
-5. Up interfaces on both vms using `wg-quick up wg0`
+5. Up interfaces on both vms using `systemctl enable wg-quick@wg0.service` and `systemctl start wg-quick@wg0.service`
 6. Set up venv and deps:
 ```
 apt install python3.10-venv
@@ -157,11 +157,11 @@ addn-hosts=/etc/dnsmasq.hosts
 14. Remove /etc/resol.conf sym links using rm `/etc/resolv.conf`
 15. Configure /etc/resolv.conf on VM edge-one:
 ```
-nameserver 172.17.0.1
+nameserver 10.0.2.9
 ```
 16. Configure /etc/resolv.conf on VM edge-two:
 ```
-nameserver 172.17.0.2
+nameserver 10.0.2.10
 ```
 17. Enable ip forwarding using /etc/sysctl.conf:
 ```
@@ -170,5 +170,19 @@ net.ipv4.ip_forward=1
 18. Allow ip forwarding from wg0 to docker0 using `iptables -A FORWARD -i wg0 -o docker0 -j ACCEPT`
 
 Note:
-  Currently we have to run wg-quick up command on reboot every timeand restart dnsmasq afterward.
-  We also have to add the ip tables rule again.
+  Currently we have to add the ip tables rule again on every reboot.
+
+19. Enable container host sync from edge-one to edge-two:
+```
+export DOCKER_HOST=tcp://172.17.0.2:2375
+source venv/bin/activate
+python3 container-host-sync.py
+```
+20. Enable container host sync from edge-two to edge-one:
+```
+export DOCKER_HOST=tcp://172.17.0.1:2375
+source venv/bin/activate
+python3 container-host-sync.py
+```
+21. Create network config files in /etc/systemd/network
+22. Enable and start networkd using `systemctl enable systemd-networkd.service` and `systemctl enable systemd-networkd.service`
