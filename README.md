@@ -134,35 +134,37 @@ services:
 10. Set up dnsmasq:
 ```
 apt install dnsmasq
-systemctl disable systemd-resolved
-systemctl stop systemd-resolved
 systemctl start dnsmasq
 systemctl enable dnsmasq
 ```
 11. Configure /etc/dnsmasq.conf on VM edge-one:
 ```
-strict-order
-server=172.17.0.2
+no-resolv
+no-poll
 server=8.8.8.8
 addn-hosts=/etc/dnsmasq.hosts
 ```
 12. Configure /etc/dnsmasq.conf on VM edge-two:
 ```
-strict-order
-server=172.17.0.1
+no-resolv
+no-poll
 server=8.8.8.8
 addn-hosts=/etc/dnsmasq.hosts
 ```
 13. Restart dnsmasq using `systemctl restart dnsmasq`
-14. Remove /etc/resol.conf sym links using rm `/etc/resolv.conf`
-15. Configure /etc/resolv.conf on VM edge-one:
+14. Configure /etc/systemd/resolved.conf on VM edge-one:
 ```
-nameserver 10.0.2.9
+[Resolve]
+DNSStubListener=no
+DNS=10.0.2.9
 ```
-16. Configure /etc/resolv.conf on VM edge-two:
+15. Configure /etc/systemd/resolved.conf on VM edge-two:
 ```
-nameserver 10.0.2.10
+[Resolve]
+DNSStubListener=no
+DNS=10.0.2.10
 ```
+16. On both VMs `systemctl restart systemd-resolved`
 17. Enable ip forwarding using /etc/sysctl.conf:
 ```
 net.ipv4.ip_forward=1
@@ -184,5 +186,70 @@ export DOCKER_HOST=tcp://172.17.0.1:2375
 source venv/bin/activate
 python3 container-host-sync.py
 ```
-21. Create network config files in /etc/systemd/network
-22. Enable and start networkd using `systemctl enable systemd-networkd.service` and `systemctl enable systemd-networkd.service`
+21. Configure network and VLANs using /etc/systemd/network/ files on VM edge-one:
+```
+# /etc/systemd/network/00-enp0s3.network
+[Match]
+Name=enp0s3
+
+[Network]
+DHCP=ipv4
+VLAN=enp0s3.20
+
+[Address]
+Address=10.0.2.9/24
+```
+```
+# /etc/systemd/network/10-enp0s3.20.network
+[Match]
+Name=enp0s3.20
+
+[Network]
+DHCP=no
+
+[Address]
+Address=192.168.0.25/24
+```
+```
+# /etc/systemd/network/10-enp0s3.20.netdev
+[NetDev]
+Name=enp0s3.20
+Kind=vlan
+
+[VLAN]
+Id=20
+```
+22. Configure network and VLANs using /etc/systemd/network/ files on VM edge-two:
+```
+# /etc/systemd/network/00-enp0s3.network
+[Match]
+Name=enp0s3
+
+[Network]
+DHCP=ipv4
+VLAN=enp0s3.20
+
+[Address]
+Address=10.0.2.10/24
+```
+```
+# /etc/systemd/network/10-enp0s3.20.network
+[Match]
+Name=enp0s3.20
+
+[Network]
+DHCP=no
+
+[Address]
+Address=192.168.0.26/24
+```
+```
+# /etc/systemd/network/10-enp0s3.20.netdev
+[NetDev]
+Name=enp0s3.20
+Kind=vlan
+
+[VLAN]
+Id=20
+```
+23. Enable and start networkd using `systemctl enable systemd-networkd.service` and `systemctl start systemd-networkd.service`
