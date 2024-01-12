@@ -114,6 +114,7 @@ services:
       - 172.17.0.1:2375:2375
     privileged: true
     network_mode: bridge
+    restart: unless-stopped
 ```
 8. Create compose.yaml with docker proxy on VM edge-two:
 ```
@@ -129,6 +130,7 @@ services:
       - 172.17.0.2:2375:2375
     privileged: true
     network_mode: bridge
+    restart: unless-stopped
 ```
 9. Start containers using `docker compose up -d`
 10. Set up dnsmasq:
