@@ -169,24 +169,24 @@ DNS=10.0.2.10
 ```
 net.ipv4.ip_forward=1
 ```
-18. Allow ip forwarding from wg0 to docker0 using `iptables -A FORWARD -i wg0 -o docker0 -j ACCEPT`
-
+We do this for simplicity reasons in an actual production setup we would use an explicit iptable rule:
+`iptables -A FORWARD -i wg0 -o docker0 -j ACCEPT`
 Note:
   Currently we have to add the ip tables rule again on every reboot.
 
-19. Enable container host sync from edge-one to edge-two:
+18. Enable container host sync from edge-one to edge-two:
 ```
 export DOCKER_HOST=tcp://172.17.0.2:2375
 source venv/bin/activate
 python3 container-host-sync.py
 ```
-20. Enable container host sync from edge-two to edge-one:
+19. Enable container host sync from edge-two to edge-one:
 ```
 export DOCKER_HOST=tcp://172.17.0.1:2375
 source venv/bin/activate
 python3 container-host-sync.py
 ```
-21. Configure network and VLANs using /etc/systemd/network/ files on VM edge-one:
+20. Configure network and VLANs using /etc/systemd/network/ files on VM edge-one:
 ```
 # /etc/systemd/network/00-enp0s3.network
 [Match]
@@ -219,7 +219,7 @@ Kind=vlan
 [VLAN]
 Id=20
 ```
-22. Configure network and VLANs using /etc/systemd/network/ files on VM edge-two:
+21. Configure network and VLANs using /etc/systemd/network/ files on VM edge-two:
 ```
 # /etc/systemd/network/00-enp0s3.network
 [Match]
@@ -252,4 +252,4 @@ Kind=vlan
 [VLAN]
 Id=20
 ```
-23. Enable and start networkd using `systemctl enable systemd-networkd.service` and `systemctl start systemd-networkd.service`
+22. Enable and start networkd using `systemctl enable systemd-networkd.service` and `systemctl start systemd-networkd.service`
