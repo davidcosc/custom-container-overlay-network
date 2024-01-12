@@ -193,8 +193,9 @@ python3 container-host-sync.py
 Name=enp0s3
 
 [Network]
-DHCP=ipv4
+DHCP=none
 VLAN=enp0s3.20
+Gateway=10.0.2.1
 
 [Address]
 Address=10.0.2.9/24
@@ -226,8 +227,9 @@ Id=20
 Name=enp0s3
 
 [Network]
-DHCP=ipv4
+DHCP=none
 VLAN=enp0s3.20
+Gateway=10.0.2.1
 
 [Address]
 Address=10.0.2.10/24
