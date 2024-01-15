@@ -10,7 +10,7 @@ async def list_container():
     entries = []
     for c in container:
       a = await c.show()
-      entry = a["NetworkSettings"]["Networks"]["bridge"]["IPAddress"] + "   " + a["Name"][1:] + "\n"
+      entry = a["NetworkSettings"]["Networks"]["overlay"]["IPAddress"] + "   " + a["Name"][1:] + "\n"
       print(entry)
       entries.append(entry)
 

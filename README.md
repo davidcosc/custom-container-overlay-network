@@ -68,27 +68,27 @@ wg genkey | tee privatekey | wg pubkey > publickey
 3. Configure wireguard /etc/wireguard/wg0.conf on VM edge-one:
 ```
 [Interface]
-Address = 172.17.0.2/24
-ListenPort = 51820
-PrivateKey = yMAlixuGy+KT29g8CLSNyF0sXV1ouwLLiHUCSaeFt1s=
-
-[Peer]
-PublicKey = 9ffGDXtrBiJRaZtZXI8m7cg4ERcG+VomDPmoP+97bTs=
-AllowedIPs = 172.17.0.1/24, 172.17.1.0/24
-Endpoint =  10.0.2.9:51820
-PersistentKeepalive = 25
-```
-4. Configure wireguard /etc/wireguard/wg0.conf on VM edge-two:
-```
-[Interface]
 Address = 172.17.0.1/24
 ListenPort = 51820
 PrivateKey = 4KZvPYABegksSHdiKmTaHFnpiXeO5/AQj6L7a8YjSlE=
 
 [Peer]
 PublicKey = Df3ptNMWulL5b4POzLyY59N+5tw59X9liDXuWEglA1Y=
-AllowedIPs = 172.17.0.2/24, 172.17.2.0/24
+AllowedIPs = 172.17.0.2/24, 172.18.2.0/24
 Endpoint = 10.0.2.10:51820
+PersistentKeepalive = 25
+```
+4. Configure wireguard /etc/wireguard/wg0.conf on VM edge-two:
+```
+[Interface]
+Address = 172.17.0.2/24
+ListenPort = 51820
+PrivateKey = yMAlixuGy+KT29g8CLSNyF0sXV1ouwLLiHUCSaeFt1s=
+
+[Peer]
+PublicKey = 9ffGDXtrBiJRaZtZXI8m7cg4ERcG+VomDPmoP+97bTs=
+AllowedIPs = 172.17.0.1/24, 172.18.1.0/24
+Endpoint =  10.0.2.9:51820
 PersistentKeepalive = 25
 ```
 5. Up interfaces on both vms using `systemctl enable wg-quick@wg0.service` and `systemctl start wg-quick@wg0.service`
@@ -100,7 +100,7 @@ python3 -m venv venv
 source venv/bin/activate
 pip install aiodocker
 ```
-7. Create compose.yaml with docker proxy on VM edge-one:
+7. Create compose.yaml with docker proxy on VM edge-one. This will also create a new docker network. We do this to ensure containers can communicate via container name. Only custom docker networks use dockers inbuild DNS. The default network/bridge does not.
 ```
 services:
   proxy:
@@ -113,10 +113,23 @@ services:
     ports:
       - 172.17.0.1:2375:2375
     privileged: true
-    network_mode: bridge
+    networks:
+      - overlay
     restart: unless-stopped
+
+networks:
+  overlay:
+    name: overlay
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.18.1.0/24
+          gateway: 172.18.1.1
+    driver_opts:
+      com.docker.network.bridge.name: overlay
 ```
-8. Create compose.yaml with docker proxy on VM edge-two:
+8. Create compose.yaml with docker proxy on VM edge-two. This will also create a new docker network. We do this to ensure containers can communicate via container name. Only custom docker networks use dockers inbuild DNS. The default network/bridge does not.
 ```
 services:
   proxy:
@@ -129,8 +142,21 @@ services:
     ports:
       - 172.17.0.2:2375:2375
     privileged: true
-    network_mode: bridge
+    networks:
+      - overlay
     restart: unless-stopped
+
+networks:
+  overlay:
+    name: overlay
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.18.2.0/24
+          gateway: 172.18.2.1
+    driver_opts:
+      com.docker.network.bridge.name: overlay
 ```
 9. Start containers using `docker compose up -d`
 10. Set up dnsmasq:
