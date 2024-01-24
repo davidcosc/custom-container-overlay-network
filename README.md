@@ -1,6 +1,6 @@
 # custom-container-overlay-network
 
-![network](./images/overlay.png)
+![network](./images/overlay.drawio.png)
 
 
 ## Prerequisites
