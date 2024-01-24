@@ -1,5 +1,7 @@
 # custom-container-overlay-network
 
+![network](./images/overlay.png)
+
 
 ## Prerequisites
 
