@@ -54,55 +54,7 @@ sudo apt-get update
 
 sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 ```
-3. Configure /etc/docker/daemon.json with `"bip: "172.17.1.1/24"` for one vm and `"bip": "172.17.2.1/24"` for the other:
-```
-{
-"bip": "<the-respective-bip>"
-}
-```
-2. Set up wireguard:
-```
-# Both vms:
-apt install wireguard
-umask 077
-wg genkey | tee privatekey | wg pubkey > publickey
-```
-3. Configure wireguard /etc/wireguard/wg0.conf on VM edge-one:
-```
-[Interface]
-Address = 172.17.0.1/24
-ListenPort = 51820
-PrivateKey = 4KZvPYABegksSHdiKmTaHFnpiXeO5/AQj6L7a8YjSlE=
-
-[Peer]
-PublicKey = Df3ptNMWulL5b4POzLyY59N+5tw59X9liDXuWEglA1Y=
-AllowedIPs = 172.17.0.2/24, 172.18.2.0/24
-Endpoint = 10.0.2.10:51820
-PersistentKeepalive = 25
-```
-4. Configure wireguard /etc/wireguard/wg0.conf on VM edge-two:
-```
-[Interface]
-Address = 172.17.0.2/24
-ListenPort = 51820
-PrivateKey = yMAlixuGy+KT29g8CLSNyF0sXV1ouwLLiHUCSaeFt1s=
-
-[Peer]
-PublicKey = 9ffGDXtrBiJRaZtZXI8m7cg4ERcG+VomDPmoP+97bTs=
-AllowedIPs = 172.17.0.1/24, 172.18.1.0/24
-Endpoint =  10.0.2.9:51820
-PersistentKeepalive = 25
-```
-5. Up interfaces on both vms using `systemctl enable wg-quick@wg0.service` and `systemctl start wg-quick@wg0.service`
-6. Set up venv and deps:
-```
-apt install python3.10-venv
-apt install python3-pip
-python3 -m venv venv
-source venv/bin/activate
-pip install aiodocker
-```
-7. Create compose.yaml with docker proxy on VM edge-one. This will also create a new docker network. We do this to ensure containers can communicate via container name. Only custom docker networks use dockers inbuild DNS. The default network/bridge does not.
+2. Create compose.yaml with docker proxy on VM edge-one. This will also create a new docker network. We do this to ensure containers can communicate via container name. Only custom docker networks use dockers inbuild DNS. The default network/bridge does not.
 ```
 services:
   proxy:
@@ -131,7 +83,7 @@ networks:
     driver_opts:
       com.docker.network.bridge.name: overlay
 ```
-8. Create compose.yaml with docker proxy on VM edge-two. This will also create a new docker network. We do this to ensure containers can communicate via container name. Only custom docker networks use dockers inbuild DNS. The default network/bridge does not.
+3. Create compose.yaml with docker proxy on VM edge-two. This will also create a new docker network. We do this to ensure containers can communicate via container name. Only custom docker networks use dockers inbuild DNS. The default network/bridge does not.
 ```
 services:
   proxy:
@@ -160,62 +112,85 @@ networks:
     driver_opts:
       com.docker.network.bridge.name: overlay
 ```
-9. Start containers using `docker compose up -d`
-10. Set up dnsmasq:
+4. Create overlay network and start containers using `docker compose up -d`
+5. Set up wireguard:
 ```
-apt install dnsmasq
-systemctl start dnsmasq
-systemctl enable dnsmasq
+# Both vms:
+apt install wireguard
+umask 077
+wg genkey | tee privatekey | wg pubkey > publickey
 ```
-11. Configure /etc/dnsmasq.conf on VM edge-one:
+6. Configure wireguard /etc/wireguard/wg0.conf on VM edge-one:
 ```
-no-resolv
-no-poll
-server=8.8.8.8
-addn-hosts=/etc/dnsmasq.hosts
+[Interface]
+Address = 172.17.0.1/24
+ListenPort = 51820
+PrivateKey = 4KZvPYABegksSHdiKmTaHFnpiXeO5/AQj6L7a8YjSlE=
+PostUp = iptables -A FORWARD -i wg0 -o overlay -j ACCEPT
+PostDown = iptables -D FORWARD -i wg0 -o overlay -j ACCEPT
+
+[Peer]
+PublicKey = Df3ptNMWulL5b4POzLyY59N+5tw59X9liDXuWEglA1Y=
+AllowedIPs = 172.17.0.2/24, 172.18.2.0/24
+Endpoint = 10.0.2.10:51820
+PersistentKeepalive = 25
 ```
-12. Configure /etc/dnsmasq.conf on VM edge-two:
+7. Configure wireguard /etc/wireguard/wg0.conf on VM edge-two:
 ```
-no-resolv
-no-poll
-server=8.8.8.8
-addn-hosts=/etc/dnsmasq.hosts
+[Interface]
+Address = 172.17.0.2/24
+ListenPort = 51820
+PrivateKey = yMAlixuGy+KT29g8CLSNyF0sXV1ouwLLiHUCSaeFt1s=
+PostUp = iptables -A FORWARD -i wg0 -o overlay -j ACCEPT
+PostDown = iptables -D FORWARD -i wg0 -o overlay -j ACCEPT
+
+[Peer]
+PublicKey = 9ffGDXtrBiJRaZtZXI8m7cg4ERcG+VomDPmoP+97bTs=
+AllowedIPs = 172.17.0.1/24, 172.18.1.0/24
+Endpoint =  10.0.2.9:51820
+PersistentKeepalive = 25
 ```
-13. Restart dnsmasq using `systemctl restart dnsmasq`
-14. Configure /etc/systemd/resolved.conf on VM edge-one:
+8. Up interfaces on both vms using `systemctl enable wg-quick@wg0.service` and `systemctl start wg-quick@wg0.service`
+
+10. Ensure ip forwarding is disabled using /etc/sysctl.conf:
+```
+net.ipv4.ip_forward=0
+```
+Reboot in case it was not.
+11. Clone coreDNS and overlay plugin repositories:
+```
+git clone https://github.com/coredns/coredns
+git clone https://github.com/davidcosc/custom-container-overlay-network.git
+```
+12. Adjust ./coredns/plugin.cfg by adding `dockerhosts:overlay/dockerhosts` into the plugin chain right before the `forward:forward` plugin. CoreDNS executes plugins in the order defined here. This means on incoming DNS requests the dockerhosts plugin will be queried before the forward plugin. This ensures we always check available container entries first. For an example configuration see the plugin.cfg in this repository.
+13. Adjust/create ./coredns/Corefile with the following content:
+```
+.:53 {
+	dockerhosts tcp://172.17.0.2:2375 tcp://172.17.0.1:2375
+	forward . 8.8.8.8
+}
+```
+This enables the dockerhost and forward plugin when running coreDNS with this config. The dockerhosts parameters are the docker-socket-proxy exposed ip and port for both hosts.
+14. Add a replacement rule to ./coredns/go.mod to ensure the dockerhosts plugin is resolved locally `replace overlay/dockerhosts => ../custom-container-overlay-network`
+15. Build and run coreDNS:
+```
+cd coredns
+make
+./coredns -conf Corefile > /dev/null &
+```
+16. Configure /etc/systemd/resolved.conf on VM edge-one:
 ```
 [Resolve]
 DNSStubListener=no
 DNS=10.0.2.9
 ```
-15. Configure /etc/systemd/resolved.conf on VM edge-two:
+17. Configure /etc/systemd/resolved.conf on VM edge-two:
 ```
 [Resolve]
 DNSStubListener=no
 DNS=10.0.2.10
 ```
 16. On both VMs `systemctl restart systemd-resolved`
-17. Enable ip forwarding using /etc/sysctl.conf:
-```
-net.ipv4.ip_forward=1
-```
-We do this for simplicity reasons in an actual production setup we would use an explicit iptable rule:
-`iptables -A FORWARD -i wg0 -o docker0 -j ACCEPT`
-Note:
-  Currently we have to add the ip tables rule again on every reboot.
-
-18. Enable container host sync from edge-one to edge-two:
-```
-export DOCKER_HOST=tcp://172.17.0.2:2375
-source venv/bin/activate
-python3 container-host-sync.py
-```
-19. Enable container host sync from edge-two to edge-one:
-```
-export DOCKER_HOST=tcp://172.17.0.1:2375
-source venv/bin/activate
-python3 container-host-sync.py
-```
 20. Configure network and VLANs using /etc/systemd/network/ files on VM edge-one:
 ```
 # /etc/systemd/network/00-enp0s3.network
@@ -285,3 +260,4 @@ Kind=vlan
 Id=20
 ```
 22. Enable and start networkd using `systemctl enable systemd-networkd.service` and `systemctl start systemd-networkd.service`
+23. `reboot`
