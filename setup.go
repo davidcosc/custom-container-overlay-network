@@ -1,7 +1,6 @@
 package dockerhosts
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/coredns/caddy"
@@ -15,23 +14,24 @@ func init() {
 }
 
 func setup(c *caddy.Controller) error {
-	fmt.Printf("Setting up dockerhosts pugin.\n")
 	c.Next() // 'dockerhosts'
-	hosts := c.RemainingArgs()
-	if len(hosts) < 1 {
-		return errors.New("Expected at least 1 docker host, but got 0!")
-	}
-	dp := &CoreDNSDockerPlugin{
-		clients:        []*client.Client{},
-		containerIPMap: map[string]IPInfo{},
-		network:        "overlay",
-	}
-	if err := dp.initClients(hosts); err != nil {
-		return err
-	}
+	dockerHosts := c.RemainingArgs()
+	fmt.Printf("Remaining args %v\n", dockerHosts)
 	dnsserver.GetConfig(c).AddPlugin(func(next plugin.Handler) plugin.Handler {
-		dp.Next = next // Set the Next field, so the plugin chaining works.
+		dp := &CoreDNSDockerPlugin{
+			Next:             next, // Set the Next field, so the plugin chaining works.
+			clients:          []*client.Client{},
+			containerToIPMap: map[string]string{},
+			network:          "overlay",
+			errorCount:       0,
+		}
+		err := dp.initClients(dockerHosts)
+		if err != nil {
+			panic(err)
+		}
+		go dp.updateContainers()
 		return dp
 	})
+
 	return nil
 }

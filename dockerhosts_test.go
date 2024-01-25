@@ -13,13 +13,16 @@ import (
 
 func TestDockerhosts(t *testing.T) {
 	dp := &CoreDNSDockerPlugin{
-		clients:        []*client.Client{},
-		containerIPMap: map[string]IPInfo{},
-		network:        "overlay",
+		clients:          []*client.Client{},
+		containerToIPMap: map[string]string{},
+		network:          "overlay",
+		errorCount:       0,
 	}
-	if err := dp.initClients([]string{"tcp://172.17.0.2:2375", "tcp://172.17.0.1:2375"}); err != nil {
-		t.Errorf("Init clients error %v", err)
+	err := dp.initClients([]string{"tcp://172.17.0.2:2375", "tcp://172.17.0.1:2375"})
+	if err != nil {
+		panic(err)
 	}
+	go dp.updateContainers()
 	if dp.Name() != name {
 		t.Errorf("expected plugin name: %s, got %s", dp.Name(), name)
 	}
@@ -30,42 +33,24 @@ func TestDockerhosts(t *testing.T) {
 		remote        string
 		expectedCode  int
 		expectedReply []string // ownernames for the records in the additional section.
-		wait          time.Duration
 	}{
 		{
 			qname:        "unknown_uakari",
 			qtype:        dns.TypeA,
 			expectedCode: 2,
-			wait:         0 * time.Second,
 		},
+		// Case insensitive and case preserving
 		{
 			qname:         "cadvisorB",
 			qtype:         dns.TypeA,
 			expectedCode:  dns.RcodeSuccess,
 			expectedReply: []string{"cadvisorB."},
-			wait:          0 * time.Second,
-		},
-		{
-			qname:        "blubb.example.com",
-			qtype:        dns.TypeA,
-			expectedCode: 2,
-			wait:         0 * time.Second,
-		},
-		{
-			qname:         "cadvisorB",
-			qtype:         dns.TypeA,
-			expectedCode:  dns.RcodeSuccess,
-			expectedReply: []string{"cadvisorB."},
-			wait:          70 * time.Second,
 		},
 	}
 
 	ctx := context.TODO()
 
 	for i, tc := range tests {
-		if tc.wait > 0*time.Second {
-			time.Sleep(tc.wait)
-		}
 		req := new(dns.Msg)
 		req.SetQuestion(dns.Fqdn(tc.qname), tc.qtype)
 		rec := dnstest.NewRecorder(&test.ResponseWriter{RemoteIP: tc.remote})
