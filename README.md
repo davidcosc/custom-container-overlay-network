@@ -225,13 +225,20 @@ Id=20
 net.ipv4.ip_forward=0
 ```
 13. `reboot`
-14. Clone coreDNS and overlay plugin repositories:
+14. Install golang and make:
+```
+wget https://go.dev/dl/go1.21.6.linux-amd64.tar.gz
+rm -rf /usr/local/go && tar -C /usr/local -xzf go1.21.6.linux-amd64.tar.gz
+export PATH=$PATH:/usr/local/go/bin
+apt update && apt install make -y
+```
+15. Clone coreDNS and overlay plugin repositories:
 ```
 git clone https://github.com/coredns/coredns
 git clone https://github.com/davidcosc/custom-container-overlay-network.git
 ```
-15. Adjust ./coredns/plugin.cfg by adding `dockerhosts:overlay/dockerhosts` into the plugin chain right before the `forward:forward` plugin. CoreDNS executes plugins in the order defined here. This means on incoming DNS requests the dockerhosts plugin will be queried before the forward plugin. This ensures we always check available container entries first. For an example configuration see the plugin.cfg in this repository.
-16. Adjust/create ./coredns/Corefile with the following content:
+16. Adjust ./coredns/plugin.cfg by adding `dockerhosts:overlay/dockerhosts` into the plugin chain right before the `forward:forward` plugin. CoreDNS executes plugins in the order defined here. This means on incoming DNS requests the dockerhosts plugin will be queried before the forward plugin. This ensures we always check available container entries first. For an example configuration see the plugin.cfg in this repository.
+17. Adjust/create ./coredns/Corefile with the following content:
 ```
 .:53 {
 	dockerhosts tcp://172.17.0.2:2375 tcp://172.17.0.1:2375
@@ -239,23 +246,27 @@ git clone https://github.com/davidcosc/custom-container-overlay-network.git
 }
 ```
 This enables the dockerhost and forward plugin when running coreDNS with this config. The dockerhosts parameters are the docker-socket-proxy exposed ip and port for both hosts.
-17. Add a replacement rule to ./coredns/go.mod to ensure the dockerhosts plugin is resolved locally `replace overlay/dockerhosts => ../custom-container-overlay-network`
-18. Build and run coreDNS:
+18. Add a replacement rule to ./coredns/go.mod to ensure the dockerhosts plugin is resolved locally `replace overlay/dockerhosts => ../custom-container-overlay-network`
+19. Build coreDNS:
 ```
 cd coredns
 make
-./coredns -conf Corefile > /dev/null &
 ```
-19. Configure /etc/systemd/resolved.conf on VM edge-one:
+20. Configure /etc/systemd/resolved.conf on VM edge-one:
 ```
 [Resolve]
 DNSStubListener=no
 DNS=10.0.2.9
 ```
-20. Configure /etc/systemd/resolved.conf on VM edge-two:
+21. Configure /etc/systemd/resolved.conf on VM edge-two:
 ```
 [Resolve]
 DNSStubListener=no
 DNS=10.0.2.10
 ```
-21. `systemctl restart systemd-resolved`
+22. `systemctl restart systemd-resolved`
+23. Run coreDNS using `./coredns -conf Corefile > /dev/null &`
+If you do not want to rerun it on every reboot you could write yourself a systemd service.
+
+If you set up both vms correctly you should now be able to ping containers running on both hosts via their respective container names. You won't have to expose any container ports on the host network.
+For example you could try running an nginx on both of your hosts, name them ng1 and ng2 exec into them and try to ping each other.
